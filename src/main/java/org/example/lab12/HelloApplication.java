@@ -15,6 +15,7 @@ public class HelloApplication extends Application {
         primaryStage.setScene(scene);
         primaryStage.setTitle("Graph Shortest Path Finder");
         primaryStage.show();
+
     }
 
     public static void main(String[] args) {

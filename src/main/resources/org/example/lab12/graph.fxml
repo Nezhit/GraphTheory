@@ -25,7 +25,7 @@
     </top>
 
     <center>
-        <Pane fx:id="graphPane" onMouseClicked="#addVertex"/>
+        <Pane fx:id="graphPane" onMouseClicked="#addVertex" onKeyPressed="#onKeyPressed" focusTraversable="true"/>
     </center>
 
     <bottom>

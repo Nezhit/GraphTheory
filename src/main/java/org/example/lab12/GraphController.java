@@ -73,6 +73,13 @@ public class GraphController {
             resultLabel.setText("Ошибка: введите корректное количество вершин (1-10).");
         }
     }
+    @FXML
+    private void onKeyPressed(javafx.scene.input.KeyEvent event) {
+        if ((event.getCode() == javafx.scene.input.KeyCode.DELETE || event.getCode() == javafx.scene.input.KeyCode.BACK_SPACE) && selectedVertex != null) {
+            removeVertex(selectedVertex);
+            clearSelection();  // Снимаем выделение после удаления вершины
+        }
+    }
 
     // Метод добавления вершины
     public void addVertex(MouseEvent event) {
@@ -97,6 +104,53 @@ public class GraphController {
             resultLabel.setText("Достигнуто максимальное количество вершин: " + maxVertexCount);
         }
     }
+    // Метод для удаления вершины
+    private void removeVertex(Vertex vertex) {
+        int vertexId = vertex.getId();
+
+        // Удаляем все рёбра, связанные с этой вершиной
+        List<Edge> edgesToRemove = new ArrayList<>();
+        for (Edge edge : edges) {
+            if (edge.getStart().equals(vertex) || edge.getEnd().equals(vertex)) {
+                edgesToRemove.add(edge);
+            }
+        }
+        for (Edge edge : edgesToRemove) {
+            removeEdge(edge.getStart(), edge.getEnd());
+        }
+
+        // Удаляем вершину с графической панели
+        graphPane.getChildren().removeAll(vertex.getCircle(), vertex.getText());
+
+        // Удаляем вершину из списка вершин
+        vertices.remove(vertex);
+
+        // Обновляем матрицу смежности: сдвигаем строки и столбцы
+        int[][] newAdjacencyMatrix = new int[maxVertexCount - 1][maxVertexCount - 1];
+        for (int i = 0, newI = 0; i < maxVertexCount; i++) {
+            if (i == vertexId) continue; // Пропускаем удаляемую вершину
+            for (int j = 0, newJ = 0; j < maxVertexCount; j++) {
+                if (j == vertexId) continue; // Пропускаем удаляемую вершину
+                newAdjacencyMatrix[newI][newJ] = adjacencyMatrix[i][j];
+                newJ++;
+            }
+            newI++;
+        }
+
+        // Обновляем матрицу и количество вершин
+        adjacencyMatrix = newAdjacencyMatrix;
+        maxVertexCount--;
+
+        // Уменьшаем идентификаторы оставшихся вершин
+        for (Vertex v : vertices) {
+            if (v.getId() > vertexId) {
+                v.setId(v.getId() - 1);
+            }
+        }
+
+        // Перерисовываем граф
+        updateGraph();
+    }
 
     // Метод для обработки кликов по вершинам
     private void onVertexClicked(MouseEvent event) {
@@ -113,6 +167,7 @@ public class GraphController {
 
         // Обработка правого клика
         if (event.getButton() == MouseButton.SECONDARY) {
+            graphPane.requestFocus();
             if (clickedVertex.equals(selectedVertex)) {
                 // Если кликнули по той же вершине, снимаем выделение
                 clearSelection();
@@ -295,11 +350,23 @@ public class GraphController {
 
         // Создаём текстовые поля для матрицы
         TextField[][] matrixFields = new TextField[maxVertexCount][maxVertexCount];
+
         for (int i = 0; i < maxVertexCount; i++) {
             for (int j = 0; j < maxVertexCount; j++) {
+                // Инициализация текстовых полей перед их использованием
                 TextField textField = new TextField(String.valueOf(adjacencyMatrix[i][j]));
                 textField.setPrefWidth(40);
                 matrixFields[i][j] = textField;
+
+                // Проверяем, существуют ли вершины с id i и j, и настраиваем доступность полей
+                int finalI = i;
+                int finalJ = j;
+                if (vertices.stream().anyMatch(v -> v.getId() == finalI) && vertices.stream().anyMatch(v -> v.getId() == finalJ)) {
+                    textField.setDisable(false);
+                } else {
+                    textField.setDisable(true);
+                }
+
                 matrixPane.add(textField, j, i);
             }
         }
@@ -347,6 +414,7 @@ public class GraphController {
         stage.setTitle("Редактор матрицы смежности");
         stage.show();
     }
+
 
     // Метод для удаления ребра между вершинами
     public void removeEdge(Vertex v1, Vertex v2) {
@@ -487,6 +555,11 @@ public class GraphController {
         public Text getText() {
             return text;
         }
+        public void setId(int newId) {
+            this.id = newId;
+            text.setText(String.valueOf(newId));  // Обновляем отображение номера вершины
+        }
+
 
         // Метод для обновления положения текста при перемещении вершины
         public void updateTextPosition() {
