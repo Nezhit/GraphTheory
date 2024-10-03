@@ -343,6 +343,150 @@ public class GraphController {
             this.distance = distance;
         }
     }
+    public void findShortestPathFloyd() {
+        try {
+            int start = Integer.parseInt(startVertexField.getText());
+            int end = Integer.parseInt(endVertexField.getText());
+
+            if (start < 0 || start >= maxVertexCount || end < 0 || end >= maxVertexCount) {
+                resultLabel.setText("Ошибка: введите корректные номера вершин.");
+                return;
+            }
+
+            // Вызов алгоритма Флойда-Уоршалла
+            FloydResult result = floydWarshall(start, end);
+
+            if (result.distance == Integer.MAX_VALUE) {
+                resultLabel.setText("Путь между вершинами не существует.");
+            } else {
+                resultLabel.setText("Алгоритм Флойда-Уоршалла: Кратчайший путь длиной: " + result.distance + "\n" +
+                        "Вершины: " + result.path);
+                highlightPath(result.path);  // Выделяем путь на графе
+            }
+        } catch (NumberFormatException e) {
+            resultLabel.setText("Ошибка: введите корректные номера вершин.");
+        }
+    }
+
+    // Алгоритм Флойда-Уоршалла для поиска кратчайшего пути
+    private FloydResult floydWarshall(int start, int end) {
+        int[][] dist = new int[maxVertexCount][maxVertexCount];
+        int[][] next = new int[maxVertexCount][maxVertexCount];
+
+        // Инициализация матрицы расстояний
+        for (int i = 0; i < maxVertexCount; i++) {
+            for (int j = 0; j < maxVertexCount; j++) {
+                if (i == j) {
+                    dist[i][j] = 0;
+                } else if (adjacencyMatrix[i][j] != 0) {
+                    dist[i][j] = adjacencyMatrix[i][j];
+                } else {
+                    dist[i][j] = Integer.MAX_VALUE;
+                }
+                next[i][j] = (adjacencyMatrix[i][j] != 0) ? j : -1;
+            }
+        }
+
+        // Основной цикл алгоритма Флойда-Уоршалла
+        for (int k = 0; k < maxVertexCount; k++) {
+            for (int i = 0; i < maxVertexCount; i++) {
+                for (int j = 0; j < maxVertexCount; j++) {
+                    if (dist[i][k] != Integer.MAX_VALUE && dist[k][j] != Integer.MAX_VALUE &&
+                            dist[i][k] + dist[k][j] < dist[i][j]) {
+                        dist[i][j] = dist[i][k] + dist[k][j];
+                        next[i][j] = next[i][k];
+                    }
+                }
+            }
+        }
+
+        // Построение пути
+        List<Integer> path = new ArrayList<>();
+        if (next[start][end] == -1) {
+            return new FloydResult(Integer.MAX_VALUE, path);  // Пути нет
+        }
+
+        int at = start;
+        while (at != end) {
+            path.add(at);
+            at = next[at][end];
+        }
+        path.add(end);
+
+        return new FloydResult(dist[start][end], path);
+    }
+
+    // Вспомогательный класс для результата алгоритма Флойда-Уоршалла
+    private static class FloydResult {
+        int distance;
+        List<Integer> path;
+
+        FloydResult(int distance, List<Integer> path) {
+            this.distance = distance;
+            this.path = path;
+        }
+    }
+    // Метод для отображения всех кратчайших путей и сравнения алгоритмов
+    public void showAllShortestPaths() {
+        Stage stage = new Stage();
+        GridPane gridPane = new GridPane();
+
+        // Время выполнения алгоритма Дейкстры
+        long startTimeDijkstra = System.nanoTime();
+        String dijkstraResults = calculateAllPathsDijkstra();
+        long endTimeDijkstra = System.nanoTime();
+        long dijkstraTime = endTimeDijkstra - startTimeDijkstra;
+
+        // Время выполнения алгоритма Флойда-Уоршалла
+        long startTimeFloyd = System.nanoTime();
+        String floydResults = calculateAllPathsFloyd();
+        long endTimeFloyd = System.nanoTime();
+        long floydTime = endTimeFloyd - startTimeFloyd;
+
+        // Отображаем результаты
+        Label dijkstraLabel = new Label("Алгоритм Дейкстры:\n" + dijkstraResults + "\nВремя выполнения: " + dijkstraTime + " нс");
+        Label floydLabel = new Label("Алгоритм Флойда-Уоршалла:\n" + floydResults + "\nВремя выполнения: " + floydTime + " нс");
+
+        gridPane.add(dijkstraLabel, 0, 0);
+        gridPane.add(floydLabel, 0, 1);
+
+        Scene scene = new Scene(gridPane, 600, 400);
+        stage.setScene(scene);
+        stage.setTitle("Сравнение алгоритмов Дейкстры и Флойда-Уоршалла");
+        stage.show();
+    }
+
+    // Метод для вычисления всех кратчайших путей с использованием алгоритма Дейкстры
+    private String calculateAllPathsDijkstra() {
+        StringBuilder result = new StringBuilder();
+        for (int i = 0; i < maxVertexCount; i++) {
+            for (int j = 0; j < maxVertexCount; j++) {
+                if (i != j) {
+                    DijkstraResult dijkstraResult = dijkstra(i, j);
+                    result.append("Из ").append(i).append(" в ").append(j)
+                            .append(": Длина пути = ").append(dijkstraResult.distance)
+                            .append(", Путь = ").append(dijkstraResult.path).append("\n");
+                }
+            }
+        }
+        return result.toString();
+    }
+
+    // Метод для вычисления всех кратчайших путей с использованием алгоритма Флойда-Уоршалла
+    private String calculateAllPathsFloyd() {
+        StringBuilder result = new StringBuilder();
+        for (int i = 0; i < maxVertexCount; i++) {
+            for (int j = 0; j < maxVertexCount; j++) {
+                if (i != j) {
+                    FloydResult floydResult = floydWarshall(i, j);
+                    result.append("Из ").append(i).append(" в ").append(j)
+                            .append(": Длина пути = ").append(floydResult.distance)
+                            .append(", Путь = ").append(floydResult.path).append("\n");
+                }
+            }
+        }
+        return result.toString();
+    }
     // Метод для отображения редактора матрицы
     public void showMatrixEditor() {
         Stage stage = new Stage();

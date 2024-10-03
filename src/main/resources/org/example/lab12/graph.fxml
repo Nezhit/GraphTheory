@@ -20,7 +20,10 @@
             <TextField fx:id="startVertexField" GridPane.rowIndex="1" GridPane.columnIndex="1"/>
             <Label text="Конечная вершина:" GridPane.rowIndex="1" GridPane.columnIndex="2"/>
             <TextField fx:id="endVertexField" GridPane.rowIndex="1" GridPane.columnIndex="3"/>
-            <Button text="Найти путь" onAction="#findShortestPath" GridPane.rowIndex="1" GridPane.columnIndex="4"/>
+            <Button text="Найти путь D" onAction="#findShortestPath" GridPane.rowIndex="1" GridPane.columnIndex="4"/>
+            <Button text="Найти путь F" onAction="#findShortestPathFloyd" GridPane.rowIndex="1" GridPane.columnIndex="5"/>
+            <Button text="Все пути" onAction="#showAllShortestPaths" GridPane.rowIndex="1" GridPane.columnIndex="6"/>
+
         </GridPane>
     </top>
 
