@@ -1,8 +1,13 @@
-package org.example.lab12;
+package org.example.lab12.controllers;
 
+import javafx.animation.KeyFrame;
+import javafx.animation.PauseTransition;
+import javafx.animation.Timeline;
+import javafx.animation.TranslateTransition;
 import javafx.fxml.FXML;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
+import javafx.scene.control.ChoiceBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextField;
 import javafx.scene.control.TextInputDialog;
@@ -16,25 +21,29 @@ import javafx.scene.shape.Line;
 import javafx.scene.shape.Polygon;
 import javafx.scene.text.Text;
 import javafx.stage.Stage;
+import javafx.util.Duration;
+import org.example.lab12.classes.Packet;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.PriorityQueue;
+import java.util.Random;
 
 
 public class GraphController {
 
     @FXML
-    private TextField vertexCountField, startVertexField, endVertexField;
+    private TextField vertexCountField, startVertexField, endVertexField,packetCountField;
     @FXML
     private Label resultLabel;
     @FXML
     private Pane graphPane;
+    @FXML
+    private ChoiceBox<String> routingMethodChoiceBox;
 
     private List<Vertex> vertices = new ArrayList<>();
     private List<Edge> edges = new ArrayList<>();
@@ -212,6 +221,52 @@ public class GraphController {
             }
         }
     }
+    @FXML
+    private void startRouting() {
+        try {
+            int startVertex = Integer.parseInt(startVertexField.getText());
+            int endVertex = Integer.parseInt(endVertexField.getText());
+            int packetCount = Integer.parseInt(packetCountField.getText());
+
+            String routingMethod = routingMethodChoiceBox.getValue();
+            List<Integer> route = findRoute(startVertex, endVertex); // метод для получения маршрута
+
+            if (route.isEmpty()) {
+                resultLabel.setText("Путь не найден.");
+            } else {
+                animatePackets(route, packetCount, routingMethod); // Запуск анимации пакетов
+                resultLabel.setText("Маршрутизация завершена: " + routingMethod);
+            }
+
+        } catch (NumberFormatException e) {
+            resultLabel.setText("Ошибка: введите корректные данные.");
+        }
+    }
+    private List<Integer> findRoute(int start, int end) {
+        List<Integer> route = new ArrayList<>();
+        Random random = new Random();
+        int current = start;
+
+        while (current != end) {
+            route.add(current);
+            List<Integer> neighbors = new ArrayList<>();
+            for (int i = 0; i < maxVertexCount; i++) {
+                if (adjacencyMatrix[current][i] > 0) {
+                    neighbors.add(i);
+                }
+            }
+
+            if (neighbors.isEmpty()) {
+                return new ArrayList<>();  // Путь не найден
+            }
+
+            current = neighbors.get(random.nextInt(neighbors.size()));
+        }
+
+        route.add(end);
+        return route;
+    }
+
     public void addEdge(Vertex v1, Vertex v2, int weight) {
         if (weight > 0) {
             // Поиск уже существующего ребра между этими вершинами
@@ -261,6 +316,136 @@ public class GraphController {
             resultLabel.setText("Ошибка: введите корректные номера вершин.");
         }
     }
+    public void animatePackets(List<Integer> route, int packetCount, String routingMethod) {
+        List<Packet> packets = new ArrayList<>();
+
+        // Создаём пакеты с указанной конечной точкой
+        for (int i = 0; i < packetCount; i++) {
+            Packet packet = new Packet(route.get(route.size() - 1)); // Конечная вершина маршрута
+            packets.add(packet);
+            graphPane.getChildren().add(packet.getPacketCircle()); // Добавляем визуализацию на панель
+        }
+
+        for (int i = 0; i < packets.size(); i++) {
+            Packet packet = packets.get(i);
+
+            // Устанавливаем начальную позицию пакета на первой вершине маршрута
+            Vertex startVertex = vertices.get(route.get(0));
+            packet.getPacketCircle().setCenterX(startVertex.getCircle().getCenterX());
+            packet.getPacketCircle().setCenterY(startVertex.getCircle().getCenterY());
+            packet.setCurrentPosition(route.get(0)); // Установка начальной позиции пакета
+
+            // Добавляем задержку перед началом анимации для каждого пакета
+            PauseTransition initialDelay = new PauseTransition(Duration.millis(i * 200));
+            initialDelay.setOnFinished(e -> {
+                // Запуск анимации для каждого пакета после задержки
+                final int[] currentPositionIndex = {0};
+                if (routingMethod.equals("дейтаграмма")) {//
+                    playTransition(packet, findRoute(route.getFirst(),route.getLast()), currentPositionIndex, routingMethod);
+                }else if(routingMethod.equals("виртуальный канал")){
+                    playTransition(packet, route, currentPositionIndex, routingMethod);
+                }
+
+            });
+            initialDelay.play();
+        }
+    }
+
+    private void playTransition(Packet packet, List<Integer> route, int[] currentPositionIndex, String routingMethod) {
+        if (currentPositionIndex[0] < route.size() - 1) {
+            int nextPositionIndex;
+
+
+                // последовательное перемещение для виртуального канала
+                nextPositionIndex = currentPositionIndex[0] + 1;
+
+
+            int currentVertexId = route.get(currentPositionIndex[0]);
+            int nextVertexId = route.get(nextPositionIndex);
+
+            Vertex currentVertex = vertices.get(currentVertexId);
+            Vertex nextVertex = vertices.get(nextVertexId);
+
+            // Вычисляем координаты текущей и следующей вершины
+            double startX = currentVertex.getCircle().getCenterX();
+            double startY = currentVertex.getCircle().getCenterY();
+            double endX = nextVertex.getCircle().getCenterX();
+            double endY = nextVertex.getCircle().getCenterY();
+
+            // Обновляем позицию packetCircle для нового перехода
+            Circle packetCircle = packet.getPacketCircle();
+            packetCircle.setTranslateX(0);
+            packetCircle.setTranslateY(0);
+            packetCircle.setCenterX(startX);
+            packetCircle.setCenterY(startY);
+
+            // Создаем плавный переход между текущей и следующей вершинами
+            TranslateTransition transition = new TranslateTransition(Duration.seconds(1), packetCircle);
+            transition.setFromX(0);
+            transition.setFromY(0);
+            transition.setToX(endX - startX);
+            transition.setToY(endY - startY);
+
+            transition.setOnFinished(e -> {
+                packet.setCurrentPosition(nextVertexId); // Обновляем текущую позицию пакета
+                currentPositionIndex[0] = nextPositionIndex; // Обновляем индекс позиции
+                playTransition(packet, route, currentPositionIndex, routingMethod); // Рекурсивно запускаем переход к следующей вершине
+            });
+
+            transition.play();
+        } else {
+            graphPane.getChildren().remove(packet.getPacketCircle()); // Убираем пакет после достижения цели
+        }
+    }
+
+
+    // Вспомогательный метод для создания анимации перехода
+    private void playTransition(Circle packetCircle, List<Integer> route, int[] currentPositionIndex, String routingMethod) {
+        if (currentPositionIndex[0] < route.size() - 1) {
+            int nextPositionIndex;
+
+            if (routingMethod.equals("дейтаграмма")) {
+                // случайный выбор следующей вершины для дейтаграммного метода
+                nextPositionIndex = (int) (Math.random() * (route.size() - currentPositionIndex[0] - 1)) + currentPositionIndex[0] + 1;
+            } else {
+                // последовательное перемещение для виртуального канала
+                nextPositionIndex = currentPositionIndex[0] + 1;
+            }
+
+            int currentVertexId = route.get(currentPositionIndex[0]);
+            int nextVertexId = route.get(nextPositionIndex);
+
+            Vertex currentVertex = vertices.get(currentVertexId);
+            Vertex nextVertex = vertices.get(nextVertexId);
+
+            // Вычисляем координаты следующей вершины
+            double startX = currentVertex.getCircle().getCenterX();
+            double startY = currentVertex.getCircle().getCenterY();
+            double endX = nextVertex.getCircle().getCenterX();
+            double endY = nextVertex.getCircle().getCenterY();
+
+            // Создаем переход между текущей и следующей вершинами
+            TranslateTransition transition = new TranslateTransition(Duration.seconds(1), packetCircle);
+            transition.setFromX(startX - packetCircle.getCenterX()); // смещение относительно текущей позиции
+            transition.setFromY(startY - packetCircle.getCenterY());
+            transition.setToX(endX - packetCircle.getCenterX()); // смещение для следующей позиции
+            transition.setToY(endY - packetCircle.getCenterY());
+
+            // Переход к следующей вершине
+            transition.setOnFinished(e -> {
+                packetCircle.setCenterX(endX);
+                packetCircle.setCenterY(endY);
+                currentPositionIndex[0] = nextPositionIndex; // Обновляем индекс позиции
+                playTransition(packetCircle, route, currentPositionIndex, routingMethod); // Рекурсивно запускаем переход к следующей вершине
+            });
+
+            transition.play();
+        } else {
+            graphPane.getChildren().remove(packetCircle); // Убираем пакет после достижения цели
+        }
+    }
+
+
 
     private DijkstraResult dijkstra(int start, int end) {
         int[] dist = new int[maxVertexCount];

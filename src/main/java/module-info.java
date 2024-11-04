@@ -7,4 +7,6 @@ module org.example.lab12 {
 
     opens org.example.lab12 to javafx.fxml;
     exports org.example.lab12;
+    exports org.example.lab12.controllers;
+    opens org.example.lab12.controllers to javafx.fxml;
 }

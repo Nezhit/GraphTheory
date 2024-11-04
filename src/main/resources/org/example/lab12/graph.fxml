@@ -7,7 +7,10 @@
 <?import javafx.scene.layout.GridPane?>
 <?import javafx.scene.layout.Pane?>
 
-<BorderPane xmlns:fx="http://javafx.com/fxml" fx:controller="org.example.lab12.GraphController">
+<?import javafx.collections.FXCollections?>
+<?import javafx.scene.control.ChoiceBox?>
+<?import java.lang.String?>
+<BorderPane xmlns:fx="http://javafx.com/fxml" fx:controller="org.example.lab12.controllers.GraphController">
     <top>
         <GridPane hgap="10" vgap="10" >
             <Label text="Количество вершин:" GridPane.rowIndex="0" GridPane.columnIndex="0"/>
@@ -23,7 +26,17 @@
             <Button text="Найти путь D" onAction="#findShortestPath" GridPane.rowIndex="1" GridPane.columnIndex="4"/>
             <Button text="Найти путь F" onAction="#findShortestPathFloyd" GridPane.rowIndex="1" GridPane.columnIndex="5"/>
             <Button text="Все пути" onAction="#showAllShortestPaths" GridPane.rowIndex="1" GridPane.columnIndex="6"/>
-
+            <Label text="Метод маршрутизации:" GridPane.rowIndex="2" GridPane.columnIndex="0"/>
+            <ChoiceBox fx:id="routingMethodChoiceBox" GridPane.rowIndex="2" GridPane.columnIndex="1">
+                <items>
+                    <FXCollections fx:factory="observableArrayList">
+                        <String fx:value="виртуальный канал"/>
+                        <String fx:value="дейтаграмма"/>
+                    </FXCollections>
+                </items>
+            </ChoiceBox>
+            <TextField fx:id="packetCountField" promptText="Количество пакетов" GridPane.rowIndex="2" GridPane.columnIndex="2"/>
+            <Button text="Случайная маршрутизация" onAction="#startRouting" GridPane.rowIndex="2" GridPane.columnIndex="3"/>
         </GridPane>
     </top>
 
