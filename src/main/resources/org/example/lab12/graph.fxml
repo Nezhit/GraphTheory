@@ -37,6 +37,8 @@
             </ChoiceBox>
             <TextField fx:id="packetCountField" promptText="Количество пакетов" GridPane.rowIndex="2" GridPane.columnIndex="2"/>
             <Button text="Случайная маршрутизация" onAction="#startRouting" GridPane.rowIndex="2" GridPane.columnIndex="3"/>
+            <Button text="Лавинная маршрутизация" onAction="#startAvalancheRouting" GridPane.rowIndex="1" GridPane.columnIndex="7"/>
+
         </GridPane>
     </top>
 

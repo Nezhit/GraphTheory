@@ -222,6 +222,141 @@ public class GraphController {
         }
     }
     @FXML
+    private void startAvalancheRouting() {
+        try {
+            int startVertex = Integer.parseInt(startVertexField.getText());
+            int endVertex = Integer.parseInt(endVertexField.getText());
+            int packetCount = Integer.parseInt(packetCountField.getText());
+            String routingMethod = routingMethodChoiceBox.getValue();
+
+            if (routingMethod.equals("виртуальный канал")) {
+                // Один путь для всех пакетов
+                List<Integer> route = findAvalancheRoute(startVertex, endVertex);
+                if (route.isEmpty()) {
+                    resultLabel.setText("Путь не найден.");
+                } else {
+                    animateAvalanchePackets(route, packetCount, routingMethod);
+                    resultLabel.setText("Лавинная маршрутизация завершена: виртуальный канал.");
+                }
+            } else if (routingMethod.equals("дейтаграмма")) {
+                // Индивидуальные маршруты для каждого пакета
+                for (int i = 0; i < packetCount; i++) {
+                    List<Integer> route = findAvalancheRoute(startVertex, endVertex);
+                    if (route.isEmpty()) {
+                        resultLabel.setText("Путь не найден для одного из пакетов.");
+                    } else {
+                        animateAvalanchePackets(route, 1, routingMethod);
+                    }
+                }
+                resultLabel.setText("Лавинная маршрутизация завершена: дейтаграмма.");
+            }
+
+        } catch (NumberFormatException e) {
+            resultLabel.setText("Ошибка: введите корректные данные.");
+        }
+    }
+
+    private List<Integer> findAvalancheRoute(int start, int end) {
+        List<Integer> route = new ArrayList<>();
+        Random random = new Random();
+        int current = start;
+        int previous = -1;  // To track the previous vertex
+
+        while (current != end) {
+            route.add(current);
+            List<Integer> neighbors = new ArrayList<>();
+            for (int i = 0; i < maxVertexCount; i++) {
+                if (adjacencyMatrix[current][i] > 0 && i != previous) {
+                    neighbors.add(i);
+                }
+            }
+
+            if (neighbors.isEmpty()) {
+                return new ArrayList<>();  // No route found
+            }
+
+            previous = current;  // Update the previous vertex
+            current = neighbors.get(random.nextInt(neighbors.size()));
+        }
+
+        route.add(end);
+        return route;
+    }
+
+    public void animateAvalanchePackets(List<Integer> route, int packetCount, String routingMethod) {
+        List<Packet> packets = new ArrayList<>();
+
+
+        for (int i = 0; i < packetCount; i++) {
+            Packet packet = new Packet(route.get(route.size() - 1)); // Конечная вершина маршрута
+            packets.add(packet);
+            graphPane.getChildren().add(packet.getPacketCircle()); // Добавляем визуализацию на панель
+        }
+
+        for (int i = 0; i < packets.size(); i++) {
+            Packet packet = packets.get(i);
+            Vertex startVertex = vertices.get(route.get(0));
+            packet.getPacketCircle().setCenterX(startVertex.getCircle().getCenterX());
+            packet.getPacketCircle().setCenterY(startVertex.getCircle().getCenterY());
+            packet.setCurrentPosition(route.get(0));
+
+            PauseTransition initialDelay = new PauseTransition(Duration.millis(i * 200));
+            initialDelay.setOnFinished(e -> {
+                if (routingMethod.equals("виртуальный канал")) {
+                    playAvalancheTransition(packet, route, 0, -1); // Один общий маршрут
+                } else if (routingMethod.equals("дейтаграмма")) {
+                    List<Integer> individualRoute = findAvalancheRoute(route.get(0), route.get(route.size() - 1));
+                    playAvalancheTransition(packet, individualRoute, 0, -1); // Индивидуальный маршрут для каждого пакета
+                }
+            });
+            initialDelay.play();
+        }
+    }
+    private void playAvalancheTransition(Packet packet, List<Integer> route, int currentPositionIndex, int previousVertexId) {
+        if (currentPositionIndex < route.size() - 1) {
+            int currentVertexId = route.get(currentPositionIndex);
+            int nextVertexId = route.get(currentPositionIndex + 1);
+
+            Vertex currentVertex = vertices.get(currentVertexId);
+            Vertex nextVertex = vertices.get(nextVertexId);
+
+            Circle packetCircle = packet.getPacketCircle();
+            double startX = currentVertex.getCircle().getCenterX();
+            double startY = currentVertex.getCircle().getCenterY();
+            double endX = nextVertex.getCircle().getCenterX();
+            double endY = nextVertex.getCircle().getCenterY();
+
+            // Создаем плавный переход между текущей и следующей вершинами
+            TranslateTransition transition = new TranslateTransition(Duration.seconds(1), packetCircle);
+            transition.setFromX(packetCircle.getTranslateX());
+            transition.setFromY(packetCircle.getTranslateY());
+            transition.setToX(endX - startX);
+            transition.setToY(endY - startY);
+
+            // Настройка завершения перехода
+            transition.setOnFinished(e -> {
+                packetCircle.setTranslateX(0);  // Сброс перевода к нулю после завершения перехода
+                packetCircle.setTranslateY(0);  // чтобы сохранить абсолютную позицию
+                packetCircle.setCenterX(endX);
+                packetCircle.setCenterY(endY);
+                packet.setCurrentPosition(nextVertexId);
+
+                // Запуск перехода к следующей вершине, если есть ещё вершины в маршруте
+                playAvalancheTransition(packet, route, currentPositionIndex + 1, currentVertexId);
+            });
+
+            // Запуск анимации
+            transition.play();
+        } else {
+            // Удаление пакета после достижения конечной точки
+            graphPane.getChildren().remove(packet.getPacketCircle());
+        }
+    }
+
+
+
+
+    @FXML
     private void startRouting() {
         try {
             int startVertex = Integer.parseInt(startVertexField.getText());
