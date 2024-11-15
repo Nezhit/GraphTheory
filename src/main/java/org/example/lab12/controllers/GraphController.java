@@ -8,6 +8,7 @@ import javafx.fxml.FXML;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.ChoiceBox;
+import javafx.scene.control.ChoiceDialog;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextField;
 import javafx.scene.control.TextInputDialog;
@@ -22,13 +23,17 @@ import javafx.scene.shape.Polygon;
 import javafx.scene.text.Text;
 import javafx.stage.Stage;
 import javafx.util.Duration;
+import javafx.util.StringConverter;
 import org.example.lab12.classes.Packet;
+import org.example.lab12.classes.RoutingTable;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.PriorityQueue;
 import java.util.Random;
@@ -39,7 +44,7 @@ public class GraphController {
     @FXML
     private TextField vertexCountField, startVertexField, endVertexField,packetCountField;
     @FXML
-    private Label resultLabel;
+    private Label resultLabel, routingTableLabel;
     @FXML
     private Pane graphPane;
     @FXML
@@ -48,8 +53,11 @@ public class GraphController {
     private List<Vertex> vertices = new ArrayList<>();
     private List<Edge> edges = new ArrayList<>();
     private Vertex selectedVertex = null;  // Выделенная вершина для добавления рёбер
+    private RoutingTable routingTable = new RoutingTable();
     private int maxVertexCount = 0;  // Количество вершин для использования по умолчанию
     private double orgSceneX, orgSceneY;  // Для перемещения вершины
+    private Map<Integer, Map<Integer, Integer>> routingData = new HashMap<>();
+
 
     private int[][] adjacencyMatrix = new int[maxVertexCount][maxVertexCount];  // Матрица смежности для хранения графа
 
@@ -353,6 +361,273 @@ public class GraphController {
         }
     }
 
+    @FXML
+    private void startExperienceRouting() {
+        try {
+            int startVertex = Integer.parseInt(startVertexField.getText());
+            int endVertex = Integer.parseInt(endVertexField.getText());
+            int packetCount = Integer.parseInt(packetCountField.getText());
+
+            String routingMethod = routingMethodChoiceBox.getValue();
+
+            if (routingMethod.equals("виртуальный канал")) {
+                // Один маршрут для всех пакетов
+                List<Integer> route = findPathWithExperience(startVertex, endVertex);
+                if (route.isEmpty()) {
+                    resultLabel.setText("Путь не найден.");
+                } else {
+                    animateExperienceRouting(route, packetCount);
+                    resultLabel.setText("Маршрутизация по опыту завершена: виртуальный канал.");
+                }
+            } else if (routingMethod.equals("дейтаграмма")) {
+                // Индивидуальные маршруты для каждого пакета
+                for (int i = 0; i < packetCount; i++) {
+                    List<Integer> route = findPathWithExperience(startVertex, endVertex);
+                    if (route.isEmpty()) {
+                        resultLabel.setText("Путь не найден для одного из пакетов.");
+                    } else {
+                        animateExperienceRouting(route, 1);
+                    }
+                }
+                resultLabel.setText("Маршрутизация по опыту завершена: дейтаграмма.");
+            }
+        } catch (NumberFormatException e) {
+            resultLabel.setText("Ошибка: введите корректные данные.");
+        }
+    }
+
+    private List<Integer> findPathWithExperience(int start, int end) {
+        List<Integer> route = new ArrayList<>();
+        Random random = new Random();
+        int current = start;
+        int previousNode = -1;
+        int hopCount = 0;
+
+        while (current != end) {
+            route.add(current);
+            List<Integer> neighbors = new ArrayList<>();
+            for (int i = 0; i < maxVertexCount; i++) {
+                if (adjacencyMatrix[current][i] > 0 && i != previousNode) {
+                    neighbors.add(i);
+                }
+            }
+
+            if (neighbors.isEmpty()) {
+                return new ArrayList<>();  // Путь не найден
+            }
+
+            int nextNode = neighbors.get(random.nextInt(neighbors.size()));
+            hopCount++;
+            updateRoutingTable(current, nextNode, hopCount);  // Обновление таблицы маршрутизации
+            previousNode = current;
+            current = nextNode;
+        }
+
+        route.add(end);
+        return route;
+    }
+
+    private void updateRoutingTable(int currentNode, int viaNode, int hopCount) {
+       // System.out.println("Обновление таблицы маршрутизации: текущий узел = " + currentNode + ", через узел = " + viaNode + ", количество переходов = " + hopCount);
+        routingTable.updateTable(currentNode, viaNode, hopCount);
+        routingTableLabel.setText(routingTable.getTableRepresentation());
+    }
+
+
+    public void animateExperienceRouting(List<Integer> route, int packetCount) {
+        List<Packet> packets = new ArrayList<>();
+
+        for (int i = 0; i < packetCount; i++) {
+            Packet packet = new Packet(route.get(route.size() - 1));
+            packets.add(packet);
+            graphPane.getChildren().add(packet.getPacketCircle());
+        }
+
+        for (int i = 0; i < packets.size(); i++) {
+            Packet packet = packets.get(i);
+            Vertex startVertex = vertices.get(route.get(0));
+            packet.getPacketCircle().setCenterX(startVertex.getCircle().getCenterX());
+            packet.getPacketCircle().setCenterY(startVertex.getCircle().getCenterY());
+            packet.setCurrentPosition(route.get(0));
+
+            PauseTransition initialDelay = new PauseTransition(Duration.millis(i * 200));
+            initialDelay.setOnFinished(e -> playAvalancheTransition(packet, route, 0, -1));
+            initialDelay.play();
+        }
+    }
+
+//    private void playExperienceTransition(Packet packet, List<Integer> route, int currentPositionIndex, int previousVertexId) {
+//        if (currentPositionIndex < route.size() - 1) {
+//            int currentVertexId = route.get(currentPositionIndex);
+//            int nextVertexId = route.get(currentPositionIndex + 1);
+//
+//            Vertex currentVertex = vertices.get(currentVertexId);
+//            Vertex nextVertex = vertices.get(nextVertexId);
+//
+//            Circle packetCircle = packet.getPacketCircle();
+//            double startX = currentVertex.getCircle().getCenterX();
+//            double startY = currentVertex.getCircle().getCenterY();
+//            double endX = nextVertex.getCircle().getCenterX();
+//            double endY = nextVertex.getCircle().getCenterY();
+//
+//            TranslateTransition transition = new TranslateTransition(Duration.seconds(1), packetCircle);
+//            transition.setFromX(0);
+//            transition.setFromY(0);
+//            transition.setToX(endX - startX);
+//            transition.setToY(endY - startY);
+//
+//            transition.setOnFinished(e -> {
+//                packetCircle.setCenterX(endX);
+//                packetCircle.setCenterY(endY);
+//                packet.setCurrentPosition(nextVertexId);
+//                updateRoutingTable(currentVertexId, nextVertexId, currentPositionIndex + 1); // Обновление таблицы
+//
+//                playExperienceTransition(packet, route, currentPositionIndex + 1, currentVertexId);
+//            });
+//
+//            transition.play();
+//        } else {
+//            graphPane.getChildren().remove(packet.getPacketCircle());
+//        }
+//    }
+@FXML
+private void startFixedRouting() {
+    try {
+        int startVertex = Integer.parseInt(startVertexField.getText());
+        int endVertex = Integer.parseInt(endVertexField.getText());
+        int packetCount = Integer.parseInt(packetCountField.getText());
+        String routingMethod = routingMethodChoiceBox.getValue();
+
+        List<List<Integer>> allRoutes = findAllPathsUsingRoutingTable(startVertex, endVertex);
+
+        if (allRoutes.isEmpty()) {
+            resultLabel.setText("Путь не найден.");
+        } else {
+            if (routingMethod.equals("виртуальный канал")) {
+                // Показ диалогового окна для выбора пути
+                List<Integer> selectedRoute = showRouteSelectionDialog(allRoutes);
+                if (selectedRoute != null) {
+                    animateFixedRouting(selectedRoute, packetCount);
+                    resultLabel.setText("Фиксированная маршрутизация завершена: виртуальный канал.");
+                } else {
+                    resultLabel.setText("Маршрутизация отменена пользователем.");
+                }
+            } else if (routingMethod.equals("дейтаграмма")) {
+                for (int i = 0; i < packetCount; i++) {
+                    int randomIndex = new Random().nextInt(allRoutes.size());
+                    animateFixedRouting(allRoutes.get(randomIndex), 1);
+                }
+                resultLabel.setText("Фиксированная маршрутизация завершена: дейтаграмма.");
+            }
+        }
+    } catch (NumberFormatException e) {
+        resultLabel.setText("Ошибка: введите корректные данные.");
+    }
+}
+
+    private List<List<Integer>> findAllPathsUsingRoutingTable(int start, int end) {
+        List<List<Integer>> paths = new ArrayList<>();
+        findPathsRecursive(start, end, new ArrayList<>(), paths);
+        return paths;
+    }
+
+    private void findPathsRecursive(int current, int end, List<Integer> path, List<List<Integer>> paths) {
+        path.add(current);
+
+        if (current == end) {
+            paths.add(new ArrayList<>(path));
+        } else if (routingTable.getRoutingData().containsKey(current)) {
+            for (int nextNode : routingTable.getRoutingData().get(current).keySet()) {
+                if (!path.contains(nextNode)) {
+                    findPathsRecursive(nextNode, end, path, paths);
+                }
+            }
+        }
+
+        path.remove(path.size() - 1);
+    }
+
+    private List<Integer> showRouteSelectionDialog(List<List<Integer>> routes) {
+        // Создаем список строковых представлений маршрутов для отображения
+        List<String> routeDescriptions = new ArrayList<>();
+        for (List<Integer> route : routes) {
+            routeDescriptions.add("Маршрут: " + route.toString() + ", Переходов: " + (route.size() - 1));
+        }
+
+        // Создаем диалог с первым маршрутом по умолчанию
+        ChoiceDialog<String> dialog = new ChoiceDialog<>(routeDescriptions.get(0), routeDescriptions);
+        dialog.setTitle("Выбор маршрута");
+        dialog.setHeaderText("Выберите маршрут для виртуального канала");
+        dialog.setContentText("Доступные маршруты:");
+
+        // Показ диалога и получение результата
+        Optional<String> result = dialog.showAndWait();
+        if (result.isPresent()) {
+            // Находим индекс выбранного маршрута в списке описаний
+            int selectedIndex = routeDescriptions.indexOf(result.get());
+            return routes.get(selectedIndex); // Возвращаем оригинальный маршрут по индексу
+        }
+        return null; // Если пользователь закрыл диалог или не выбрал маршрут
+    }
+
+
+
+
+
+    public void animateFixedRouting(List<Integer> route, int packetCount) {
+        List<Packet> packets = new ArrayList<>();
+
+        for (int i = 0; i < packetCount; i++) {
+            Packet packet = new Packet(route.get(route.size() - 1));
+            packets.add(packet);
+            graphPane.getChildren().add(packet.getPacketCircle());
+        }
+
+        for (int i = 0; i < packets.size(); i++) {
+            Packet packet = packets.get(i);
+            Vertex startVertex = vertices.get(route.get(0));
+            packet.getPacketCircle().setCenterX(startVertex.getCircle().getCenterX());
+            packet.getPacketCircle().setCenterY(startVertex.getCircle().getCenterY());
+            packet.setCurrentPosition(route.get(0));
+
+            PauseTransition initialDelay = new PauseTransition(Duration.millis(i * 200));
+            initialDelay.setOnFinished(e -> playFixedTransition(packet, route, 0));
+            initialDelay.play();
+        }
+    }
+
+    private void playFixedTransition(Packet packet, List<Integer> route, int currentPositionIndex) {
+        if (currentPositionIndex < route.size() - 1) {
+            int currentVertexId = route.get(currentPositionIndex);
+            int nextVertexId = route.get(currentPositionIndex + 1);
+
+            Vertex currentVertex = vertices.get(currentVertexId);
+            Vertex nextVertex = vertices.get(nextVertexId);
+
+            Circle packetCircle = packet.getPacketCircle();
+            double startX = currentVertex.getCircle().getCenterX();
+            double startY = currentVertex.getCircle().getCenterY();
+            double endX = nextVertex.getCircle().getCenterX();
+            double endY = nextVertex.getCircle().getCenterY();
+
+            TranslateTransition transition = new TranslateTransition(Duration.seconds(1), packetCircle);
+            transition.setFromX(0);
+            transition.setFromY(0);
+            transition.setToX(endX - startX);
+            transition.setToY(endY - startY);
+
+            transition.setOnFinished(e -> {
+                packetCircle.setCenterX(endX);
+                packetCircle.setCenterY(endY);
+                packet.setCurrentPosition(nextVertexId);
+                playFixedTransition(packet, route, currentPositionIndex + 1);
+            });
+
+            transition.play();
+        } else {
+            graphPane.getChildren().remove(packet.getPacketCircle());
+        }
+    }
 
 
 

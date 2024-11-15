@@ -1,0 +1,12 @@
+.routing-table-label {
+    -fx-background-color: #f8f9fa;
+    -fx-border-color: #ced4da;
+    -fx-border-width: 1px;
+    -fx-padding: 10px;
+    -fx-font-size: 14px;
+    -fx-text-fill: #495057;
+    -fx-border-radius: 5px;
+    -fx-background-radius: 5px;
+    -fx-wrap-text: true;
+    -fx-alignment: top-left;
+}

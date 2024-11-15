@@ -10,6 +10,7 @@
 <?import javafx.collections.FXCollections?>
 <?import javafx.scene.control.ChoiceBox?>
 <?import java.lang.String?>
+<?import javafx.scene.control.ScrollPane?>
 <BorderPane xmlns:fx="http://javafx.com/fxml" fx:controller="org.example.lab12.controllers.GraphController">
     <top>
         <GridPane hgap="10" vgap="10" >
@@ -37,9 +38,20 @@
             </ChoiceBox>
             <TextField fx:id="packetCountField" promptText="Количество пакетов" GridPane.rowIndex="2" GridPane.columnIndex="2"/>
             <Button text="Случайная маршрутизация" onAction="#startRouting" GridPane.rowIndex="2" GridPane.columnIndex="3"/>
-            <Button text="Лавинная маршрутизация" onAction="#startAvalancheRouting" GridPane.rowIndex="1" GridPane.columnIndex="7"/>
+            <Button text="Лавинная маршрутизация" onAction="#startAvalancheRouting" GridPane.rowIndex="2" GridPane.columnIndex="4"/>
+            <Button text="Начать маршрутизацию по опыту" onAction="#startExperienceRouting" GridPane.rowIndex="2" GridPane.columnIndex="5" />
+            <Button text="Фиксированная маршрутизация" onAction="#startFixedRouting" GridPane.rowIndex="2" GridPane.columnIndex="6" />
+
+            <ScrollPane GridPane.rowIndex="0" GridPane.columnIndex="7" GridPane.vgrow="NEVER"
+                        fitToWidth="false" maxWidth="200" maxHeight="150"
+                        hbarPolicy="AS_NEEDED" vbarPolicy="AS_NEEDED"
+                        style="-fx-border-color: transparent; -fx-background-color: transparent;">
+                <Label fx:id="routingTableLabel" text="Таблица маршрутизации"
+                       styleClass="routing-table-label"/>
+            </ScrollPane>
 
         </GridPane>
+
     </top>
 
     <center>
