@@ -676,6 +676,61 @@ private void startFixedRouting() {
         route.add(end);
         return route;
     }
+    @FXML
+    private void startAdaptiveRouting() {
+        try {
+            int startVertex = Integer.parseInt(startVertexField.getText());
+            int endVertex = Integer.parseInt(endVertexField.getText());
+            int packetCount = Integer.parseInt(packetCountField.getText());
+
+            String routingMethod = routingMethodChoiceBox.getValue();
+
+            // Поиск маршрута с использованием Флойда-Уоршалла
+            FloydResult result = floydWarshall(startVertex, endVertex);
+
+            if (result.distance == Integer.MAX_VALUE || result.path.isEmpty()) {
+                resultLabel.setText("Путь не найден.");
+            } else {
+                // Если путь найден, запускаем анимацию
+                if (routingMethod.equals("виртуальный канал")) {
+                    // Виртуальный канал: "паровозиком" с минимальной задержкой
+                    animateAdaptiveRouting(result.path, packetCount, Duration.millis(70));
+                    resultLabel.setText("Адаптивная маршрутизация завершена: виртуальный канал.");
+                } else if (routingMethod.equals("дейтаграмма")) {
+                    // Дейтаграмма: с индивидуальной задержкой для каждого пакета
+                    animateAdaptiveRouting(result.path, packetCount, Duration.millis(600));
+                    resultLabel.setText("Адаптивная маршрутизация завершена: дейтаграмма.");
+                }
+            }
+        } catch (NumberFormatException e) {
+            resultLabel.setText("Ошибка: введите корректные данные.");
+        }
+    }
+    public void animateAdaptiveRouting(List<Integer> route, int packetCount, Duration delay) {
+        List<Packet> packets = new ArrayList<>();
+
+        // Создаем пакеты
+        for (int i = 0; i < packetCount; i++) {
+            Packet packet = new Packet(route.get(route.size() - 1)); // Конечная вершина маршрута
+            packets.add(packet);
+            graphPane.getChildren().add(packet.getPacketCircle()); // Добавляем визуализацию на панель
+        }
+
+        // Анимация для каждого пакета
+        for (int i = 0; i < packets.size(); i++) {
+            Packet packet = packets.get(i);
+            Vertex startVertex = vertices.get(route.get(0));
+            packet.getPacketCircle().setCenterX(startVertex.getCircle().getCenterX());
+            packet.getPacketCircle().setCenterY(startVertex.getCircle().getCenterY());
+            packet.setCurrentPosition(route.get(0));
+
+            // Задержка для плавной анимации
+            PauseTransition initialDelay = new PauseTransition(delay.multiply(i));
+            initialDelay.setOnFinished(e -> playAvalancheTransition(packet, route, 0, -1));
+            initialDelay.play();
+        }
+    }
+
 
     public void addEdge(Vertex v1, Vertex v2, int weight) {
         if (weight > 0) {

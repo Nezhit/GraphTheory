@@ -41,8 +41,9 @@
             <Button text="Лавинная маршрутизация" onAction="#startAvalancheRouting" GridPane.rowIndex="2" GridPane.columnIndex="4"/>
             <Button text="Начать маршрутизацию по опыту" onAction="#startExperienceRouting" GridPane.rowIndex="2" GridPane.columnIndex="5" />
             <Button text="Фиксированная маршрутизация" onAction="#startFixedRouting" GridPane.rowIndex="2" GridPane.columnIndex="6" />
+            <Button text="Адаптивная маршрутизация" onAction="#startAdaptiveRouting" GridPane.rowIndex="2" GridPane.columnIndex="7"/>
 
-            <ScrollPane GridPane.rowIndex="0" GridPane.columnIndex="7" GridPane.vgrow="NEVER"
+            <ScrollPane GridPane.rowIndex="0" GridPane.columnIndex="8" GridPane.vgrow="NEVER"
                         fitToWidth="false" maxWidth="200" maxHeight="150"
                         hbarPolicy="AS_NEEDED" vbarPolicy="AS_NEEDED"
                         style="-fx-border-color: transparent; -fx-background-color: transparent;">
