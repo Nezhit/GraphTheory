@@ -18,15 +18,18 @@ public class RoutingTable {
 
     public String getTableRepresentation() {
         StringBuilder sb = new StringBuilder();
-        sb.append("Пункт назначения\tУзел через который проходит\tКоличество переходов\n");
+        sb.append("Текущая точка\tЧерез точку\tДлина пути\n");
         for (Map.Entry<Integer, Map<Integer, Integer>> entry : routingData.entrySet()) {
-            int destination = entry.getKey();
+            int currentNode = entry.getKey();
             for (Map.Entry<Integer, Integer> subEntry : entry.getValue().entrySet()) {
-                sb.append(destination).append("\t\t").append(subEntry.getKey()).append("\t\t").append(subEntry.getValue()).append("\n");
+                int viaNode = subEntry.getKey();
+                int pathLength = subEntry.getValue();
+                sb.append(currentNode).append("\t\t").append(viaNode).append("\t\t").append(pathLength).append("\n");
             }
         }
         return sb.toString();
     }
+
 
     public Map<Integer, Map<Integer, Integer>> getRoutingData() {
         return routingData;

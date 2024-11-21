@@ -32,11 +32,13 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.PriorityQueue;
 import java.util.Random;
+import java.util.Set;
 
 
 public class GraphController {
@@ -56,6 +58,9 @@ public class GraphController {
     private RoutingTable routingTable = new RoutingTable();
     private int maxVertexCount = 0;  // Количество вершин для использования по умолчанию
     private double orgSceneX, orgSceneY;  // Для перемещения вершины
+    private Map<String, Integer> routeStabilityMap = new HashMap<>(); // Для проверки стабильности маршрутов
+    private Map<String, Integer> routeUsageCounter = new HashMap<>();
+    private Map<String, Integer> stabilityCounter = new HashMap<>();
     private Map<Integer, Map<Integer, Integer>> routingData = new HashMap<>();
 
 
@@ -369,57 +374,103 @@ public class GraphController {
             int packetCount = Integer.parseInt(packetCountField.getText());
 
             String routingMethod = routingMethodChoiceBox.getValue();
+            String routeKey = startVertex + "->" + endVertex;
 
-            if (routingMethod.equals("виртуальный канал")) {
-                // Один маршрут для всех пакетов
-                List<Integer> route = findPathWithExperience(startVertex, endVertex);
+            // Проверяем стабильность таблицы маршрутизации
+            boolean isStable = checkStability(routeKey);
+
+            if (isStable) {
+                // Если таблица стабилизировалась, используем оптимальный маршрут
+                List<Integer> route = getOptimalPath(startVertex, endVertex);
                 if (route.isEmpty()) {
-                    resultLabel.setText("Путь не найден.");
-                } else {
-                    animateExperienceRouting(route, packetCount);
-                    resultLabel.setText("Маршрутизация по опыту завершена: виртуальный канал.");
+                    resultLabel.setText("Оптимальный путь не найден. Проверьте данные.");
+                    return;
                 }
-            } else if (routingMethod.equals("дейтаграмма")) {
-                // Индивидуальные маршруты для каждого пакета
-                for (int i = 0; i < packetCount; i++) {
-                    List<Integer> route = findPathWithExperience(startVertex, endVertex);
-                    if (route.isEmpty()) {
-                        resultLabel.setText("Путь не найден для одного из пакетов.");
-                    } else {
+
+                if (routingMethod.equals("виртуальный канал")) {
+                    animateExperienceRouting(route, packetCount);
+                    resultLabel.setText("Маршрутизация завершена: виртуальный канал (оптимальный путь).");
+                } else if (routingMethod.equals("дейтаграмма")) {
+                    for (int i = 0; i < packetCount; i++) {
                         animateExperienceRouting(route, 1);
                     }
+                    resultLabel.setText("Маршрутизация завершена: дейтаграмма (оптимальный путь).");
                 }
-                resultLabel.setText("Маршрутизация по опыту завершена: дейтаграмма.");
+            } else {
+                // Если таблица еще обучается
+                if (routingMethod.equals("виртуальный канал")) {
+                    List<Integer> route = findPathWithExperience(startVertex, endVertex);
+                    if (route.isEmpty()) {
+                        resultLabel.setText("Путь не найден.");
+                    } else {
+                        animateExperienceRouting(route, packetCount);
+                        resultLabel.setText("Маршрутизация по опыту завершена: виртуальный канал.");
+                    }
+                } else if (routingMethod.equals("дейтаграмма")) {
+                    for (int i = 0; i < packetCount; i++) {
+                        List<Integer> route = findPathWithExperience(startVertex, endVertex);
+                        if (route.isEmpty()) {
+                            resultLabel.setText("Путь не найден для одного из пакетов.");
+                        } else {
+                            animateExperienceRouting(route, 1);
+                        }
+                    }
+                    resultLabel.setText("Маршрутизация по опыту завершена: дейтаграмма.");
+                }
             }
         } catch (NumberFormatException e) {
             resultLabel.setText("Ошибка: введите корректные данные.");
         }
     }
 
-    private List<Integer> findPathWithExperience(int start, int end) {
+    private boolean checkStability(String routeKey) {
+        int previousCount = routingTable.getRoutingData().size();
+
+        // Проверяем, изменился ли размер таблицы маршрутизации
+        if (!stabilityCounter.containsKey(routeKey)) {
+            stabilityCounter.put(routeKey, 0);
+        }
+
+        int currentCount = routingTable.getRoutingData().size();
+        if (previousCount == currentCount) {
+            // Таблица стабильна для данной пары вершин
+            stabilityCounter.put(routeKey, stabilityCounter.get(routeKey) + 1);
+        } else {
+            // Таблица изменилась, сбрасываем счетчик
+            stabilityCounter.put(routeKey, 0);
+        }
+
+        // Возвращаем true, если таблица стабильна в течение 4 запусков
+        return stabilityCounter.get(routeKey) >= 4;
+    }
+
+    private List<Integer> getOptimalPath(int start, int end) {
         List<Integer> route = new ArrayList<>();
-        Random random = new Random();
         int current = start;
-        int previousNode = -1;
-        int hopCount = 0;
 
         while (current != end) {
             route.add(current);
-            List<Integer> neighbors = new ArrayList<>();
-            for (int i = 0; i < maxVertexCount; i++) {
-                if (adjacencyMatrix[current][i] > 0 && i != previousNode) {
-                    neighbors.add(i);
-                }
-            }
+
+            // Получаем узлы и их длины из таблицы маршрутизации
+            Map<Integer, Integer> neighbors = routingTable.getRoutingData().getOrDefault(current, new HashMap<>());
 
             if (neighbors.isEmpty()) {
-                return new ArrayList<>();  // Путь не найден
+                System.out.println("Нет данных для текущей вершины: " + current);
+                return new ArrayList<>(); // Путь не найден
             }
 
-            int nextNode = neighbors.get(random.nextInt(neighbors.size()));
-            hopCount++;
-            updateRoutingTable(current, nextNode, hopCount);  // Обновление таблицы маршрутизации
-            previousNode = current;
+            // Находим узел с минимальной длиной пути
+            int nextNode = neighbors.entrySet()
+                    .stream()
+                    .min(Comparator.comparingInt(Map.Entry::getValue))
+                    .map(Map.Entry::getKey)
+                    .orElse(-1);
+
+            if (nextNode == -1) {
+                System.out.println("Не удалось найти следующий узел для текущей вершины: " + current);
+                return new ArrayList<>(); // Путь не найден
+            }
+
             current = nextNode;
         }
 
@@ -427,11 +478,161 @@ public class GraphController {
         return route;
     }
 
-    private void updateRoutingTable(int currentNode, int viaNode, int hopCount) {
-       // System.out.println("Обновление таблицы маршрутизации: текущий узел = " + currentNode + ", через узел = " + viaNode + ", количество переходов = " + hopCount);
-        routingTable.updateTable(currentNode, viaNode, hopCount);
+
+
+    private List<Integer> findPathWithExperience(int start, int end) {
+        List<Integer> route = new ArrayList<>();
+        Set<Integer> visitedNodes = new HashSet<>();
+        int current = start;
+        int totalLength = 0;
+
+        while (current != end) {
+            route.add(current);
+            visitedNodes.add(current);
+
+            // Получаем соседей из таблицы маршрутизации
+            Map<Integer, Integer> neighbors = routingTable.getRoutingData().getOrDefault(current, new HashMap<>());
+
+            // Если данных нет, добавляем из матрицы смежности
+            if (neighbors.isEmpty()) {
+                for (int i = 0; i < maxVertexCount; i++) {
+                    if (adjacencyMatrix[current][i] > 0 && !visitedNodes.contains(i)) {
+                        updateRoutingTable(current, i, adjacencyMatrix[current][i]);
+                    }
+                }
+                neighbors = routingTable.getRoutingData().getOrDefault(current, new HashMap<>());
+            }
+
+            // Фильтруем соседей, исключая посещенные узлы
+            Map<Integer, Integer> filteredNeighbors = new HashMap<>();
+            for (Map.Entry<Integer, Integer> entry : neighbors.entrySet()) {
+                if (!visitedNodes.contains(entry.getKey())) {
+                    filteredNeighbors.put(entry.getKey(), entry.getValue());
+                }
+            }
+
+            if (filteredNeighbors.isEmpty()) {
+                return new ArrayList<>(); // Путь не найден
+            }
+
+            // Выбираем случайного соседа для текущего пакета
+            List<Integer> keys = new ArrayList<>(filteredNeighbors.keySet());
+            int nextNode = keys.get(new Random().nextInt(keys.size()));
+
+            // Обновляем таблицу маршрутизации
+            int previousNode = current;
+            current = nextNode;
+            totalLength += adjacencyMatrix[previousNode][current];
+            updateRoutingTable(previousNode, current, totalLength);
+        }
+
+        route.add(end);
+        saveRouteToTable(route, totalLength);
+        return route;
+    }
+
+    private void saveRouteToTable(List<Integer> route, int totalLength) {
+        String routeKey = route.get(0) + "->" + route.get(route.size() - 1);
+
+        // Если путь уже существует, проверяем его длину
+        if (routeUsageCounter.containsKey(routeKey)) {
+            if (routeUsageCounter.get(routeKey) == totalLength) {
+                // Если длина не изменилась, увеличиваем счетчик стабильности
+                routeStabilityMap.put(routeKey, routeStabilityMap.getOrDefault(routeKey, 0) + 1);
+            } else {
+                // Если длина изменилась, сбрасываем счетчик стабильности
+                routeStabilityMap.put(routeKey, 0);
+            }
+        } else {
+            // Новый маршрут, добавляем его в таблицу
+            routeStabilityMap.put(routeKey, 0);
+        }
+
+        // Сохраняем маршрут в таблицу маршрутизации
+        for (int i = 0; i < route.size() - 1; i++) {
+            int currentNode = route.get(i);
+            int nextNode = route.get(i + 1);
+
+            Map<Integer, Integer> neighbors = routingTable.getRoutingData().getOrDefault(currentNode, new HashMap<>());
+            if (!neighbors.containsKey(nextNode) || neighbors.get(nextNode) > totalLength) {
+                neighbors.put(nextNode, totalLength);
+                routingTable.getRoutingData().put(currentNode, neighbors);
+            }
+        }
+
+        // Обновляем визуализацию таблицы маршрутизации
         routingTableLabel.setText(routingTable.getTableRepresentation());
     }
+
+
+
+    private List<Integer> findShortestPathFromRoutingTable(int start, int end) {
+        List<Integer> route = new ArrayList<>();
+        int current = start;
+
+        while (current != end) {
+            route.add(current);
+
+            // Получаем следующий узел с минимальной длиной пути
+            Map<Integer, Integer> neighbors = routingTable.getRoutingData().getOrDefault(current, new HashMap<>());
+            int nextNode = neighbors.entrySet()
+                    .stream()
+                    .min(Comparator.comparingInt(Map.Entry::getValue))
+                    .map(Map.Entry::getKey)
+                    .orElse(-1);
+
+            if (nextNode == -1) {
+                System.out.println("Оптимальный маршрут не найден.");
+                return new ArrayList<>();
+            }
+
+            current = nextNode;
+        }
+
+        route.add(end);
+        return route;
+    }
+
+//    private void saveRouteToTable(List<Integer> route, int totalLength) {
+//        for (int i = 0; i < route.size() - 1; i++) {
+//            int currentNode = route.get(i);
+//            int nextNode = route.get(i + 1);
+//
+//            Map<Integer, Integer> neighbors = routingTable.getRoutingData().getOrDefault(currentNode, new HashMap<>());
+//
+//            // Если путь уже есть, обновляем только при более короткой длине
+//            if (!neighbors.containsKey(nextNode) || neighbors.get(nextNode) > totalLength) {
+//                neighbors.put(nextNode, totalLength);
+//                routingTable.getRoutingData().put(currentNode, neighbors);
+//            }
+//        }
+//
+//        // Обновляем визуализацию таблицы маршрутизации
+//        routingTableLabel.setText(routingTable.getTableRepresentation());
+//    }
+
+
+
+
+
+
+
+    private void updateRoutingTable(int currentNode, int viaNode, int pathLength) {
+        Map<Integer, Integer> neighbors = routingTable.getRoutingData().getOrDefault(currentNode, new HashMap<>());
+
+        // Если путь уже есть, обновляем только при более короткой длине
+        if (!neighbors.containsKey(viaNode) || neighbors.get(viaNode) > pathLength) {
+            neighbors.put(viaNode, pathLength);
+            routingTable.getRoutingData().put(currentNode, neighbors);
+        }
+
+        // Обновляем визуализацию таблицы маршрутизации
+        routingTableLabel.setText(routingTable.getTableRepresentation());
+    }
+
+
+
+
 
 
     public void animateExperienceRouting(List<Integer> route, int packetCount) {
@@ -456,7 +657,9 @@ public class GraphController {
         }
     }
 
-//    private void playExperienceTransition(Packet packet, List<Integer> route, int currentPositionIndex, int previousVertexId) {
+
+
+    //    private void playExperienceTransition(Packet packet, List<Integer> route, int currentPositionIndex, int previousVertexId) {
 //        if (currentPositionIndex < route.size() - 1) {
 //            int currentVertexId = route.get(currentPositionIndex);
 //            int nextVertexId = route.get(currentPositionIndex + 1);
